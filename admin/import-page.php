@@ -11,7 +11,8 @@ add_action( 'wp_ajax_enroute_import_batch', function() {
 
     switch ( $type ) {
         case 'stations':          $result = enroute_import_batch_stations( $offset, $batch );          break;
-        case 'station_photos':    $result = enroute_import_batch_station_photos( $offset, 3 );         break;
+        case 'station_photos':         $result = enroute_import_batch_station_photos( $offset, 3 );          break;
+        case 'station_activity_photos': $result = enroute_import_batch_station_activity_photos( $offset, 3 ); break;
         case 'offers':            $result = enroute_import_batch_offers( $offset, $batch );            break;
         case 'offer_photos':      $result = enroute_import_batch_offer_photos( $offset, 3 );           break;
         case 'offer_subjects':    $result = enroute_import_batch_offer_subjects( $offset, $batch );    break;
@@ -46,7 +47,8 @@ function enroute_import_page(): void {
         $groups = [
             'Stations' => [
                 'stations'           => '1. Import Stations',
-                'station_photos'     => '↳ Sideload Station Photos',
+                'station_photos'          => '↳ Sideload Station Photos',
+                'station_activity_photos' => '↳ Sideload Station Activity Photos',
             ],
             'Offers' => [
                 'offers'             => '2. Import Offers',

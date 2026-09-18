@@ -39,10 +39,12 @@ function enroute_import_batch_stations( int $offset, int $limit = 5 ): array {
             a.mobile            AS phone,
             a.website           AS website,
             a.coordinates       AS coordinates,
-            ph.photo            AS photo_path
+            ph.photo            AS photo_path,
+            pa.photo            AS activities_photo_path
         FROM provider_provider p
         LEFT JOIN appbase_address a  ON a.id  = p.coordinates_location_id
         LEFT JOIN appbase_photo   ph ON ph.id = p.photo_main_id
+        LEFT JOIN appbase_photo   pa ON pa.id = p.photo_activities_id
         WHERE p.active = 1
         ORDER BY p.id ASC
         LIMIT $limit OFFSET $offset
@@ -72,7 +74,8 @@ function enroute_import_batch_stations( int $offset, int $limit = 5 ): array {
         $coordinates     = sanitize_text_field( $row['coordinates']     ?? '' );
         $contact_details = sanitize_textarea_field( $row['contact_details'] ?? '' );
         $active          = empty( $row['active'] ) ? '0' : '1';
-        $photo_path      = $row['photo_path'] ?? '';
+        $photo_path           = $row['photo_path']            ?? '';
+        $activities_photo_path = $row['activities_photo_path'] ?? '';
 
         if ( ! $title ) {
             $title = "Station #$old_id";
@@ -129,6 +132,7 @@ function enroute_import_batch_stations( int $offset, int $limit = 5 ): array {
             wp_update_post( [ 'ID' => $post_id, 'post_title' => $title ] );
             foreach ( $meta as $key => $value ) update_post_meta( $post_id, $key, $value );
             if ( $photo_path ) update_post_meta( $post_id, '_station_photo_path_old', $photo_path );
+            if ( $activities_photo_path ) update_post_meta( $post_id, '_station_activities_photo_path_old', $activities_photo_path );
             $log[] = [ 'update', "Station old_id=$old_id updated (WP #$post_id)." ];
         } else {
             $post_id = wp_insert_post( [
@@ -145,6 +149,7 @@ function enroute_import_batch_stations( int $offset, int $limit = 5 ): array {
             update_post_meta( $post_id, '_old_cms_id', $old_id );
             foreach ( $meta as $key => $value ) update_post_meta( $post_id, $key, $value );
             if ( $photo_path ) update_post_meta( $post_id, '_station_photo_path_old', $photo_path );
+            if ( $activities_photo_path ) update_post_meta( $post_id, '_station_activities_photo_path_old', $activities_photo_path );
             $log[] = [ 'success', "Station old_id=$old_id imported as WP #$post_id." ];
         }
     }
@@ -212,6 +217,61 @@ function enroute_import_batch_station_photos( int $offset, int $limit = 3 ): arr
     } ) ) - $count;
     $done = $remaining <= 0;
     return [ 'log' => $log, 'batch_count' => $count, 'next_offset' => 0, 'total' => $total, 'done' => $done ];
+}
+
+// ── Activities photo sideload step ───────────────────────────────────────────
+
+function enroute_import_batch_station_activity_photos( int $offset, int $limit = 3 ): array {
+    $all_posts = get_posts( [
+        'post_type'   => 'station',
+        'post_status' => 'any',
+        'numberposts' => -1,
+        'fields'      => 'ids',
+        'meta_query'  => [
+            [ 'key' => '_station_activities_photo_path_old', 'compare' => 'EXISTS' ],
+        ],
+    ] );
+
+    $posts = array_values( array_filter( $all_posts, function( $post_id ) {
+        $photo_id = get_post_meta( $post_id, '_station_activities_photo_id', true );
+        return empty( $photo_id ) || (int) $photo_id === 0;
+    } ) );
+
+    $total = count( $posts );
+    $slice = array_slice( $posts, 0, $limit );
+    $log   = [];
+    $count = 0;
+
+    if ( empty( $slice ) ) {
+        return [ 'log' => [ [ 'info', 'No stations need activities photo sideloading.' ] ], 'batch_count' => 0, 'next_offset' => 0, 'total' => $total, 'done' => true ];
+    }
+
+    @set_time_limit( 120 );
+    require_once ABSPATH . 'wp-admin/includes/media.php';
+    require_once ABSPATH . 'wp-admin/includes/file.php';
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+
+    foreach ( $slice as $post_id ) {
+        $count++;
+        $photo_path = get_post_meta( $post_id, '_station_activities_photo_path_old', true );
+        $title      = get_the_title( $post_id ) . ' (activities)';
+        if ( ! $photo_path ) continue;
+
+        $photo_id = enroute_import_sideload_image( $photo_path, $post_id, $title );
+        if ( is_wp_error( $photo_id ) ) {
+            $log[] = [ 'error', "WP #$post_id: activities photo failed — " . $photo_id->get_error_message() ];
+        } else {
+            update_post_meta( $post_id, '_station_activities_photo_id', $photo_id );
+            $log[] = [ 'success', "WP #$post_id: activities photo sideloaded (attachment #$photo_id)." ];
+        }
+    }
+
+    $remaining = count( array_filter( $posts, function( $post_id ) {
+        $photo_id = get_post_meta( $post_id, '_station_activities_photo_id', true );
+        return empty( $photo_id ) || (int) $photo_id === 0;
+    } ) ) - $count;
+
+    return [ 'log' => $log, 'batch_count' => $count, 'next_offset' => 0, 'total' => $total, 'done' => $remaining <= 0 ];
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
