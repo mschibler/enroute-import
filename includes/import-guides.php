@@ -21,6 +21,49 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 define( 'GUIDE_SITE_BASE_URL', 'https://enroute.ch/media/' );
 
 // ══════════════════════════════════════════════════════════════════════════════
+// HELPER — Strip inline styles, spans, fonts; keep only meaningful tags
+// ══════════════════════════════════════════════════════════════════════════════
+
+function enroute_import_clean_html( string $html ): string {
+    // Remove style attributes from all tags
+    $html = preg_replace( '/ style="[^"]*"/i', '', $html );
+    $html = preg_replace( "/ style='[^']*'/i", '', $html );
+
+    // Unwrap <span>, <font> tags (remove tags but keep inner content)
+    $html = preg_replace( '/<span[^>]*>/i', '', $html );
+    $html = preg_replace( '/<\/span>/i', '', $html );
+    $html = preg_replace( '/<font[^>]*>/i', '', $html );
+    $html = preg_replace( '/<\/font>/i', '', $html );
+
+    // Remove class and other non-essential attributes from p tags (keep just <p>)
+    $html = preg_replace( '/<p[^>]*>/i', '<p>', $html );
+
+    // Strip any remaining tags not in our allowed list via wp_kses
+    $allowed = [
+        'p'      => [],
+        'b'      => [],
+        'strong' => [],
+        'i'      => [],
+        'em'     => [],
+        'br'     => [],
+        'a'      => [ 'href' => [], 'target' => [], 'rel' => [] ],
+        'ul'     => [],
+        'ol'     => [],
+        'li'     => [],
+    ];
+    $html = wp_kses( $html, $allowed );
+
+    // Clean up excessive whitespace and empty paragraphs
+    $html = preg_replace( '/<p>\s*<\/p>/i', '', $html );
+    $html = preg_replace( '/
+{3,}/', "
+
+", trim( $html ) );
+
+    return $html;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // STEP 1 — Import guide data
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -110,7 +153,7 @@ function enroute_import_batch_guides( int $offset, int $limit = 5 ): array {
                 $block  = '<p>';
                 if ( $n_title ) $block .= '<b>' . esc_html( $n_title ) . '</b>';
                 if ( $n_title && $n_desc ) $block .= '<br>';
-                if ( $n_desc )  $block .= wp_kses_post( $n_desc );
+                if ( $n_desc )  $block .= enroute_import_clean_html( $n_desc );
                 $block .= '</p>';
                 $parts[] = $block;
             }
