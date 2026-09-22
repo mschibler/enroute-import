@@ -24,6 +24,7 @@ add_action( 'wp_ajax_enroute_import_batch', function() {
         case 'resource_types':    $result = enroute_import_batch_resource_types( $offset, $batch );    break;
         case 'resource_religions':$result = enroute_import_batch_resource_religions( $offset, $batch );break;
         case 'guides':            $result = enroute_import_batch_guides( $offset, $batch );            break;
+        case 'guide_photos':      $result = enroute_import_batch_guide_photos( $offset, 3 );           break;
         default: wp_send_json_error( [ 'message' => 'Unknown import type.' ] ); return;
     }
 
@@ -66,6 +67,7 @@ function enroute_import_page(): void {
             ],
             'Other' => [
                 'guides'             => '4. Import Guides',
+                'guide_photos'       => '↳ Sideload Guide Photos',
             ],
         ];
         foreach ( $groups as $group_label => $buttons ) :
