@@ -29,6 +29,14 @@ add_action( 'admin_menu', function() {
         'enroute-import-settings',
         'enroute_import_settings_page'
     );
+    add_submenu_page(
+        'enroute-import',
+        __( 'Blog Settings', 'enroute_import' ),
+        __( 'Blog Settings', 'enroute_import' ),
+        'manage_options',
+        'enroute-import-blog-settings',
+        'enroute_import_blog_settings_page'
+    );
 });
 
 // ── Settings page ─────────────────────────────────────────────────────────────
@@ -160,6 +168,107 @@ function enroute_import_settings_page(): void {
             <?php submit_button( __( 'Test Connection', 'enroute_import' ), 'secondary' ); ?>
         </form>
 
+    </div>
+    <?php
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BLOG IMPORT SETTINGS — category mapping per language
+// ══════════════════════════════════════════════════════════════════════════════
+
+add_action( 'admin_init', function() {
+    // Save blog category mapping
+    if (
+        isset( $_POST['enroute_import_blog_settings_nonce'] ) &&
+        wp_verify_nonce( $_POST['enroute_import_blog_settings_nonce'], 'enroute_import_blog_settings' ) &&
+        current_user_can( 'manage_options' )
+    ) {
+        // Which app_config_ids to import
+        $import_configs = array_map( 'absint', (array) ( $_POST['enroute_blog_import_configs'] ?? [] ) );
+        update_option( 'enroute_blog_import_configs', $import_configs );
+
+        // Category mapping: [app_config_id][lang] => wp_category_id
+        $mapping = [];
+        foreach ( $_POST['enroute_blog_cat_map'] ?? [] as $config_id => $langs ) {
+            foreach ( $langs as $lang => $cat_id ) {
+                $mapping[ (int) $config_id ][ sanitize_key( $lang ) ] = absint( $cat_id );
+            }
+        }
+        update_option( 'enroute_blog_cat_map', $mapping );
+
+        add_settings_error( 'enroute_import', 'saved', __( 'Blog settings saved.', 'enroute_import' ), 'success' );
+    }
+} );
+
+function enroute_import_blog_settings_page(): void {
+    if ( ! current_user_can( 'manage_options' ) ) return;
+
+    $import_configs = get_option( 'enroute_blog_import_configs', [ 1, 3 ] );
+    $cat_map        = get_option( 'enroute_blog_cat_map', [] );
+
+    // Get all WP categories for dropdowns
+    $wp_cats = get_categories( [ 'hide_empty' => false, 'orderby' => 'name' ] );
+
+    // Blog types from old CMS (fill in after DB query)
+    $blog_types = [
+        1 => 'Guides-Blog',
+        2 => 'News',
+        3 => 'Allgemeines',
+    ];
+    $langs = [ 'de' => 'Deutsch', 'fr' => 'Français', 'it' => 'Italiano' ];
+    ?>
+    <div class="wrap">
+        <h1><?php esc_html_e( 'Blog Import Settings', 'enroute_import' ); ?></h1>
+        <?php settings_errors( 'enroute_import' ); ?>
+        <form method="post">
+            <?php wp_nonce_field( 'enroute_import_blog_settings', 'enroute_import_blog_settings_nonce' ); ?>
+
+            <h2><?php esc_html_e( 'Which blog types to import?', 'enroute_import' ); ?></h2>
+            <p><?php esc_html_e( 'Select which old CMS blog types (app_config_id) should be imported.', 'enroute_import' ); ?></p>
+            <table class="form-table">
+                <?php foreach ( $blog_types as $id => $name ) : ?>
+                <tr>
+                    <th><?php echo esc_html( $name ); ?> (ID: <?php echo $id; ?>)</th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="enroute_blog_import_configs[]"
+                                   value="<?php echo $id; ?>"
+                                   <?php checked( in_array( $id, $import_configs ) ); ?>>
+                            <?php esc_html_e( 'Import this type', 'enroute_import' ); ?>
+                        </label>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+
+            <h2><?php esc_html_e( 'Category Mapping', 'enroute_import' ); ?></h2>
+            <p><?php esc_html_e( 'Assign each old blog type to a WordPress category per language.', 'enroute_import' ); ?></p>
+
+            <?php foreach ( $blog_types as $config_id => $type_name ) : ?>
+            <h3><?php echo esc_html( $type_name ); ?></h3>
+            <table class="form-table">
+                <?php foreach ( $langs as $lang_code => $lang_label ) :
+                    $selected_cat = $cat_map[ $config_id ][ $lang_code ] ?? 0;
+                ?>
+                <tr>
+                    <th><label><?php echo esc_html( $lang_label ); ?></label></th>
+                    <td>
+                        <select name="enroute_blog_cat_map[<?php echo $config_id; ?>][<?php echo $lang_code; ?>]">
+                            <option value="0"><?php esc_html_e( '— No category —', 'enroute_import' ); ?></option>
+                            <?php foreach ( $wp_cats as $cat ) : ?>
+                            <option value="<?php echo $cat->term_id; ?>" <?php selected( $selected_cat, $cat->term_id ); ?>>
+                                <?php echo esc_html( $cat->name ); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+            <?php endforeach; ?>
+
+            <?php submit_button( __( 'Save Blog Settings', 'enroute_import' ) ); ?>
+        </form>
     </div>
     <?php
 }
