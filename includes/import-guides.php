@@ -75,19 +75,19 @@ function enroute_import_batch_guides( int $offset, int $limit = 5 ): array {
 
     @set_time_limit( 120 );
 
-    $count_result = $db->query( "SELECT COUNT(*) AS total FROM guide_guide WHERE active = 1" );
+    $count_result = $db->query( "SELECT COUNT(*) AS total FROM guide_guide" );
     $total        = $count_result ? (int) $count_result->fetch_assoc()['total'] : 0;
 
-    // Get active guides with name from appbase_address
+    // Get all guides with name from appbase_address (active flag saved as meta)
     $result = $db->query( "
         SELECT
             g.id            AS old_id,
             g.person_id     AS person_id,
+            g.active        AS active,
             a.first_name    AS first_name,
             a.last_name     AS last_name
         FROM guide_guide g
         LEFT JOIN appbase_address a ON a.id = g.person_id
-        WHERE g.active = 1
         ORDER BY g.id ASC
         LIMIT $limit OFFSET $offset
     " );
@@ -186,14 +186,17 @@ function enroute_import_batch_guides( int $offset, int $limit = 5 ): array {
             'post_status' => 'any',
         ] );
 
+        $is_active = ! empty( $row['active'] ) ? '1' : '0';
+
         if ( $existing ) {
             $post_id = $existing[0];
             wp_update_post( [ 'ID' => $post_id, 'post_title' => $title ] );
             update_post_meta( $post_id, '_guide_quote',       $quote );
             update_post_meta( $post_id, '_guide_description', wp_slash( $description ) );
             update_post_meta( $post_id, '_guide_language',    $language );
+            update_post_meta( $post_id, '_guide_active',      $is_active );
             if ( $photo_path ) update_post_meta( $post_id, '_guide_photo_path_old', $photo_path );
-            $log[] = [ 'update', "Guide old_id=$old_id updated (WP #$post_id) — $title." ];
+            $log[] = [ 'update', "Guide old_id=$old_id updated (WP #$post_id) — $title (active: $is_active)." ];
         } else {
             $post_id = wp_insert_post( [
                 'post_type'   => 'guide',
@@ -210,8 +213,9 @@ function enroute_import_batch_guides( int $offset, int $limit = 5 ): array {
             update_post_meta( $post_id, '_guide_quote',       $quote );
             update_post_meta( $post_id, '_guide_description', wp_slash( $description ) );
             update_post_meta( $post_id, '_guide_language',    $language );
+            update_post_meta( $post_id, '_guide_active',      $is_active );
             if ( $photo_path ) update_post_meta( $post_id, '_guide_photo_path_old', $photo_path );
-            $log[] = [ 'success', "Guide old_id=$old_id imported as WP #$post_id — $title." ];
+            $log[] = [ 'success', "Guide old_id=$old_id imported as WP #$post_id — $title (active: $is_active)." ];
         }
     }
 
