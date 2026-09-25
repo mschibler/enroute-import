@@ -20,4 +20,5 @@ require_once ENROUTE_IMPORT_PATH . 'includes/import-resources.php';
 require_once ENROUTE_IMPORT_PATH . 'includes/import-guides.php';
 require_once ENROUTE_IMPORT_PATH . 'admin/settings-page.php';
 require_once ENROUTE_IMPORT_PATH . 'includes/import-blog.php';
+require_once ENROUTE_IMPORT_PATH . 'includes/import-poi.php';
 require_once ENROUTE_IMPORT_PATH . 'admin/import-page.php';
