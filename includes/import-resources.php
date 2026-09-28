@@ -29,10 +29,11 @@ function enroute_import_batch_resources( int $offset, int $limit = 10 ): array {
     }
 
     @set_time_limit( 120 );
-    $count_result = $db->query( "SELECT COUNT(*) AS total FROM bibliography_bibliographyentry" );
+    // Only import resources that have a downloadable file
+    $count_result = $db->query( "SELECT COUNT(*) AS total FROM bibliography_bibliographyentry WHERE file IS NOT NULL AND file != ''" );
     $total        = $count_result ? (int) $count_result->fetch_assoc()['total'] : 0;
 
-    $result = $db->query( "SELECT id, title, file, external_link, language_id FROM bibliography_bibliographyentry ORDER BY id ASC LIMIT $limit OFFSET $offset" );
+    $result = $db->query( "SELECT id, title, file, external_link, language_id FROM bibliography_bibliographyentry WHERE file IS NOT NULL AND file != '' ORDER BY id ASC LIMIT $limit OFFSET $offset" );
     if ( ! $result ) {
         $db->close();
         return [ 'log' => [ [ 'error', 'Query failed: ' . $db->error ] ], 'batch_count' => 0, 'next_offset' => $offset, 'total' => $total, 'done' => true ];
